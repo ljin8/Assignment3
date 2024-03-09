@@ -1,0 +1,190 @@
+---
+title: "ljin8_FML_Assignment3"
+author: "Lei Jin"
+date: "2024-02-26"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+# Load required libraries
+```{r}
+rm(list = ls()) #cleaning the environment
+
+library(caret)
+library(class)
+library(knitr)
+library(class)
+library(ggplot2)
+library(dplyr)
+library(e1071)
+library(reshape2)
+library(pander)
+
+```
+
+# Read the data
+```{r}
+data <- read.csv("C:\\Users\\leile\\OneDrive\\School-Kent\\Fundamental of machine learning\\FML ASSIGNMENT.2\\UniversalBank.csv")
+```
+
+#Understand the data
+```{r}
+str(data)
+summary(data)
+```
+#Converting the Personal loan, Online and CreditCard in to factor 
+```{r}
+data$Personal.Loan = as.factor(data$Personal.Loan)
+data$Online = as.factor(data$Online)
+data$CreditCard = as.factor(data$CreditCard)
+```
+
+#Partition the data into training (60%) and validation (40%) sets
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data$Personal.Loan, p = 0.6, list = FALSE)
+train_data <- data[train_index, ]
+valid_data <- data[-train_index, ]
+nrow(train_data)
+nrow(valid_data)
+```
+#Question(A):Create a pivot table for the training data with Online as a column variable, CC as a row variable, and Loan as a secondary row variable. The values inside the table should convey the count. In R use functions melt() and cast(), or function table(). 
+```{r}
+attach(train_data)
+melt_data <- melt(train_data, id.vars = c("CreditCard", "Personal.Loan"), measure.vars = "Online")
+View(melt_data)
+
+povit_table <- dcast(melt_data, CreditCard+Personal.Loan~variable, fun.aggregate = length)
+povit_table
+
+X <- ftable(CreditCard,Personal.Loan,Online)
+pandoc.table(X,style="grid", split.tables = Inf)
+```
+
+#Question(B):Consider the task of classifying a customer who owns a bank credit card and is actively using online banking services. Looking at the pivot table, what is the probability that this customer will accept the loan offer? [This is the probability of loan acceptance (Loan = 1) conditional on having a bank credit card (CC = 1) and being an active user of online banking services (Online= 1)].
+```{r}
+Loancc1 <- 51/518
+Loancc1
+
+paste("Probability of Loan acceptance given having a bank credit card and user of online services in percentage is", round(Loancc1,4)*100,"%")
+```
+#Question(C):Create two separate pivot tables for the training data. One will have Loan (rows) as a function of Online (columns) and the other will have Loan (rows) as a function of CC.
+```{r}
+Loan_online <- melt(train_data, id.vars = c("Personal.Loan"), measure.vars = "Online")
+View(Loan_online)
+povit_table1 <- dcast(Loan_online, Personal.Loan~variable, fun.aggregate = length)
+povit_table1
+X1 <- ftable(Personal.Loan,Online )
+pandoc.table(X1,style="grid", split.tables = Inf)
+
+CreditCard_online<- melt(train_data, id.vars = c("CreditCard"), measure.vars = "Online")
+View(CreditCard_online)
+povit_table2 <- dcast(CreditCard_online, CreditCard~variable, fun.aggregate = length)
+povit_table2
+X2 <- ftable(CreditCard,Online )
+pandoc.table(X2,style="grid", split.tables = Inf)
+```
+#Question(D):Compute the following quantities [P(A | B) means “the probability ofA given B”]:
+i. P(CC = 1 | Loan = 1) (the proportion of credit card holders among the loan acceptors)
+ii. P(Online = 1 | Loan = 1)
+iii. P(Loan = 1) (the proportion of loan acceptors)
+iv. P(CC = 1 | Loan = 0)
+v. P(Online = 1 | Loan = 0)
+vi. P(Loan = 0)
+```{r}
+table(train_data[,c(14,10)])  # Creating a pivot table for column 14 and 10 which is credit card and personal loan from training 
+          
+table(train_data[,c(13,10)])  #  Creating a pivot table for column 13 and 10 which is online and personal loan from training 
+
+table(train_data[,c(10)]) # Pivot table for Personal loan.  There are 2712 and 288 from training 
+```
+P (CC = 1 | Loan = 1)
+```{r}
+CCLoan1 = 84/(84+204) # by referring the above pivot table we can get the CC= 1 and lLoan = 1 values, which is 84 divided by  CC = 0 and PL 1 204
+CCLoan1 
+```
+ P(Online = 1 | Loan = 1)
+```{r}
+ONLoan1 =176/(176+112) # by referring the above pivot table we can get the online = 1 and Loan = 1 values, which is 176 divided by  online = 0 and PL 1 112
+ONLoan1
+```
+P(Loan = 1) (the proportion of loan acceptors)
+```{r}
+Loan1 =288/(288+2712) # by referring the above pivot table we can get the Loan = 1 
+Loan1
+```
+P(CC = 1 | Loan = 0)
+```{r}
+CCLoan0= 777/(777+1935) # by referring the above pivot table we can get the CC = 1 and Loan = 0 values / CC 0 and PL 0 
+CCLoan0
+```
+P(Online = 1 | Loan = 0)
+```{r}
+O1L0= 1611/(1611+1101)  # by referring the above pivot table we can get the online = 1 and Loan = 0 values
+O1L0
+```
+P(Loan=0)
+```{r}
+
+Loan0= 2712/(2712+288)  # by referring the above pivot table we can get the Loan = 0 values
+Loan0
+```
+
+#Question(E):Use the quantities computed above to compute the naive Bayes probability P(Loan = 1 | CC= 1, Online = 1).
+
+```{r}
+Naive_Bay_Prob <- ((Loan1*CCLoan1*ONLoan1)/((Loan1*CCLoan1*ONLoan1)+(O1L0*CCLoan0*Loan0)))
+Naive_Bay_Prob
+```
+#Question(F):Compare this value with the one obtained from the pivot table in (B). Which is a more accurate estimate?
+
+##9.85% is very similar to 10% from Naive Bayes method. The exact method requires the exact same independent variable classifications to make predictions, while the Naive Bayes method does not. If we want to choose one as more accurate, we might consider the value obtained directly from the data (9.85% from the pivot table) to be slightly more accurate, as it directly reflects the observed frequency in the dataset. However, both values are very close and provide reasonable estimates of the probability.
+
+
+#Question(G):Which of the entries in this table are needed for computing P(Loan = 1 | CC = 1, Online = 1)? Run naive Bayes on the data. Examine the model output on training data, and find the entry that corresponds to P(Loan = 1 | CC = 1, Online = 1). Compare this to the number you obtained in (E).
+```{r}
+naive.train = train_data[,c(10,13,14)] # training data is from Personal loan, Creditcard and online. column 
+naive.test =valid_data[,c(10,13,14)] # testing set data from the same columns of data 
+naivebayes = naiveBayes(Personal.Loan~.,data=naive.train) # applying naivebayes algorithm to personal loan and training data. 
+naivebayes
+
+```
+Answer:
+the naivebayes is the same output we got in the manual calculation method. (0.291)*(0.611)*(0.096)/((0.291)*(0.611)*(0.096)+(0.286)*(0.594)*(0.904)) = 0.1000861 which is the same as the manual calculation.
+
+```{r}
+#Check the probability
+Aprior_Prob_N = naivebayes$apriori
+Loan_Online_N = naivebayes$tables$Online
+Loan_CC_N = naivebayes$tables$CreditCard
+
+#probability Calculation from Naive Bayes Model.
+L_CC1 = Loan_CC_N[2,2] #0.2916666
+L_ON1 = Loan_Online_N[2,2] #0.611111
+L1 = Aprior_Prob_N[1]
+L2 = Aprior_Prob_N[2]
+L = L2/(L1+L2) #0.096
+L_CC2 = Loan_CC_N[1,2] #0.2865044
+L_ON2 = Loan_Online_N[1,2]  #0.5940265
+L_not = 1-L #0.904
+
+naive_bayes_Final <- ((L_CC1*L_ON1*L)/((L_CC1*L_ON1*L)+(L_CC2*L_ON2*L_not))) 
+naive_bayes_Final
+
+paste("naive Bayes probability by using Naive bayes function is", round(naive_bayes_Final,4)*100,"%")
+
+```
+#Again, the naivebayes is the same output we got in the manual calculation method.
+
+
+
+
+
+
+
+ 
+
+
+
